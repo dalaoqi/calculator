@@ -104,7 +104,8 @@ func handler(w http.ResponseWriter, r *http.Request) {
 func loadConfig() {
 	fmt.Printf("env:\n")
 	if len(os.Args) > 1 {
-		err := tools.LoadConfigFromFile(os.Args[1])
+		f, _ := filepath.Abs(os.Args[1])
+		err := tools.LoadConfigFromFile(f)
 		if err != nil {
 			log.Fatalf(err.Error())
 		}
