@@ -25,6 +25,4 @@ echo "COMMAND:"$cmd
 eval $cmd
 RESULT=$?
 
-popd
-
 exit $RESULT
