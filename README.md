@@ -30,6 +30,8 @@ $ cd calculator
 ```
 3. In the `bin` directory, you will find four binary files. To execute them, follow this order: run `bin/server` in one command window, then run `bin/client1`, `bin/client2`, and `bin/client3` in three separate command windows.
 
+* You can regenerate binary files in the `/bin` directory by running `scripts/run_binary.sh`.
+
 4. Once the clients are ready, you will see the message, 
 ```
 You can now input integers and press [ENTER]. The clients will display the mean, median, and mode of the input values.
@@ -48,14 +50,14 @@ This system is capable of supporting multiple concurrent processes running insid
 1. build the image
 Use the following command to build the Docker image:
 ```shell=
-$ ./scripts/buildDocker.sh
+$ ./scripts/build_docker.sh
 ```
 If the build is successful, you can verify the image by running docker images and looking for an image named `calculator`.
 
 2. run the image
 To run the Docker image, use the following command:
 ```shell=
-$ ./scripts/runDocker.sh
+$ ./scripts/run_docker.sh
 ```
 
 To verify that the image is running, use `docker ps` and look for an image named `calculator`.
