@@ -19,6 +19,7 @@ fi
 
 # run
 cmd="docker run -d --restart=always --name $CONTAINER \
+    -p 8081:8081 \
     $timeZone \
     $DOCKER_IMAGE"
 

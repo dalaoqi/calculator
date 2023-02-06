@@ -31,6 +31,8 @@ COPY --from=build-env /go/bin/client1 /usr/src/app/client1
 COPY --from=build-env /go/bin/client2 /usr/src/app/client2
 COPY --from=build-env /go/bin/client3 /usr/src/app/client3
 COPY ./conf/supervisord.conf /etc/supervisor.d/supervisord.conf
+COPY ./conf/env.conf /usr/src/app/conf/env.conf
+RUN sed -i 's/SERVER_INPUT=.*/SERVER_INPUT=http/g' /usr/src/app/conf/env.conf
 COPY ./entrypoint.sh /usr/src/app
 RUN chmod +x /usr/src/app/entrypoint.sh
 WORKDIR /usr/src/app

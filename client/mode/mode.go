@@ -80,7 +80,7 @@ func main() {
 					numbers = append(numbers, number)
 				}
 				modeStr = mode(numbers)
-				fmt.Printf("complete: [%v]", modeStr)
+				fmt.Printf("complete: %v", modeStr)
 				result <- modeStr
 			}
 			sharedText.Written = false
