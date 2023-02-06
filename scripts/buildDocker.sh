@@ -1,6 +1,4 @@
 #!/bin/bash
-DIR=$(dirname "$0")/..
-pushd $DIR
 CONTAINER="calculator"
 DOCKERFILE="build/Dockerfile"
 

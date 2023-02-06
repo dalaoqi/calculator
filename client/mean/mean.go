@@ -47,6 +47,7 @@ func receiveData(conn net.Conn) {
 
 		numbers = tools.Str2slice(message)
 		result = mean(numbers)
+		fmt.Printf("Mean: %v", result)
 		_, err = fmt.Fprint(conn, result)
 		if err != nil {
 			fmt.Println("Server: end sending data")
