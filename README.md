@@ -13,6 +13,12 @@ Before you start, make sure you have Go installed on your machine. You can downl
 * GO 1.19.1
 * Docker 20.10.12
 
+## TODO
+- [x] server
+- [x] client1
+- [x] client2
+- [x] client3 
+- [ ] graceful shutdown, WIP (feature/graceful_shutdown)
 ## Running the System
 
 ### Keyboard Input
