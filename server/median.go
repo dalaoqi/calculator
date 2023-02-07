@@ -56,6 +56,9 @@ func (s *MedianServer) Run(numbersStrChan chan string, result chan string) {
 			log.Panicln(err)
 		}
 		time.Sleep(1 * time.Second)
+		if numbersStr == "Q\n" {
+			break
+		}
 	}
 }
 
@@ -92,5 +95,15 @@ func (s *MedianServer) receivePipe(result chan string) {
 			log.Fatalln(err)
 		}
 		result <- line
+		if line == "shutdown\n" {
+			s.shutdown()
+			return
+		}
 	}
+}
+
+func (s *MedianServer) shutdown() {
+	os.Remove(SEND_PIPEFILE)
+	os.Remove(RECEIVE_PIPELINE)
+	fmt.Println("Median Service is down")
 }

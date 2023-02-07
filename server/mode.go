@@ -14,8 +14,8 @@ import (
 const (
 	SEGSIZE     = 65536
 	FLAG        = 00001000 | 0777
-	SEND_KEY    = 100
-	RECEIVE_KEY = 101
+	SEND_KEY    = 1000
+	RECEIVE_KEY = 1001
 )
 
 type sharedStat struct {
@@ -29,13 +29,15 @@ type data struct {
 	cap  int
 }
 type ModeServer struct {
+	sendId      uintptr
 	sendAddr    uintptr
-	recevieAddr uintptr
+	receiveId   uintptr
+	receiveAddr uintptr
 }
 
 func (s *ModeServer) Init() {
-	s.sendAddr = createMemorySegment(SEND_KEY)
-	s.recevieAddr = createMemorySegment(RECEIVE_KEY)
+	s.sendId, s.sendAddr = createMemorySegment(SEND_KEY)
+	s.receiveId, s.receiveAddr = createMemorySegment(RECEIVE_KEY)
 }
 
 func (s *ModeServer) Run(numbersStrChan chan string, result chan string) {
@@ -58,11 +60,15 @@ func (s *ModeServer) Run(numbersStrChan chan string, result chan string) {
 
 		shmData := *(*[]byte)(unsafe.Pointer(&h))
 		copy(shmData, buf.Bytes())
-		// fmt.Println("sending to modeClient... ", numbersStr)
+		fmt.Println("sending to modeClient... ", numbersStr)
+		if numbersStr == "Q" {
+			fmt.Printf("break\n")
+			break
+		}
 	}
 }
 
-func createMemorySegment(key int) (addr uintptr) {
+func createMemorySegment(key int) (shmId, addr uintptr) {
 	shmId, _, errno := syscall.Syscall(syscall.SYS_SHMGET, uintptr(int32(key)), uintptr(int32(SEGSIZE)), uintptr(int32(FLAG)))
 	// fmt.Printf("id1: %v\n", shmId)
 	if int(shmId) == -1 {
@@ -77,12 +83,25 @@ func createMemorySegment(key int) (addr uintptr) {
 	// fmt.Printf("size of memory segment: %v\n", length)
 	if length != SEGSIZE {
 		fmt.Printf("SIZE Error\n")
-		syscall.Syscall(syscall.SYS_SHMDT, addr, 0, 0)
+		deleteMemorySegment(shmId, addr)
 	}
 	if err != nil {
-		syscall.Syscall(syscall.SYS_SHMDT, addr, 0, 0)
+		deleteMemorySegment(shmId, addr)
 	}
-	return addr
+	return shmId, addr
+}
+
+func deleteMemorySegment(id, addr uintptr) (int, error) {
+	result, _, errno := syscall.Syscall(syscall.SYS_SHMDT, addr, 0, 0)
+	if int(result) == -1 {
+		return -1, errno
+	}
+
+	result, _, errno = syscall.Syscall(syscall.SYS_SHMCTL, id, 0, 0)
+	if int(result) == -1 {
+		return -1, errno
+	}
+	return int(result), nil
 }
 
 func (s *ModeServer) test3() bool {
@@ -98,9 +117,8 @@ func (s *ModeServer) test3() bool {
 
 	shmData := *(*[]byte)(unsafe.Pointer(&h))
 	copy(shmData, buf.Bytes())
-
 	for {
-		var receiveData = data{s.recevieAddr, int(SEGSIZE), int(SEGSIZE)}
+		var receiveData = data{s.receiveAddr, int(SEGSIZE), int(SEGSIZE)}
 		shmData := *(*[]byte)(unsafe.Pointer(&receiveData))
 		dataFromClient := make([]byte, len(shmData))
 		copy(dataFromClient, shmData)
@@ -130,7 +148,7 @@ func (s *ModeServer) test3() bool {
 
 func (s *ModeServer) receiveSHM(result chan string) {
 	for {
-		var receiveData = data{s.recevieAddr, int(SEGSIZE), int(SEGSIZE)}
+		var receiveData = data{s.receiveAddr, int(SEGSIZE), int(SEGSIZE)}
 		shmData := *(*[]byte)(unsafe.Pointer(&receiveData))
 		dataFromClient := make([]byte, len(shmData))
 		copy(dataFromClient, shmData)
@@ -144,7 +162,9 @@ func (s *ModeServer) receiveSHM(result chan string) {
 		if err != nil {
 			continue
 		}
+		fmt.Printf("server read: %v", sharedText.Written)
 		if sharedText.Written {
+			fmt.Printf("server write: %v", sharedText.Text)
 			result <- sharedText.Text
 			sharedText.Written = false
 			err := enc.Encode(sharedText)
@@ -152,6 +172,22 @@ func (s *ModeServer) receiveSHM(result chan string) {
 				log.Fatal("encode error:", err)
 			}
 			copy(shmData, buf.Bytes())
+			if sharedText.Text == "shutdown\n" {
+				s.shutdown()
+				break
+			}
 		}
 	}
+}
+
+func (s *ModeServer) shutdown() {
+	_, err := deleteMemorySegment(s.sendId, s.sendAddr)
+	if err != nil {
+		log.Fatal("deleteMemorySegment error:", err)
+	}
+	_, err = deleteMemorySegment(s.receiveId, s.receiveAddr)
+	if err != nil {
+		log.Fatal("deleteMemorySegment error:", err)
+	}
+	fmt.Println("client3 is shutdown")
 }

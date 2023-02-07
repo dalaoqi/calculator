@@ -5,6 +5,7 @@ import (
 	"calculator/tools"
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 	"time"
 )
@@ -44,14 +45,22 @@ func receiveData(conn net.Conn) {
 			return
 		}
 		fmt.Print(conn.RemoteAddr().String() + ": received " + message)
-
-		numbers = tools.Str2slice(message)
-		result = mean(numbers)
-		fmt.Printf("Mean: %v", result)
+		if message == "Q\n" {
+			result = "shutdown\n"
+		} else {
+			numbers = tools.Str2slice(message)
+			result = mean(numbers)
+			fmt.Printf("Mean: %v", result)
+		}
 		_, err = fmt.Fprint(conn, result)
 		if err != nil {
 			fmt.Println("Server: end sending data")
 			return
+		}
+		if message == "Q\n" {
+			fmt.Println("Mean Client is down")
+			os.Exit(0)
+			break
 		}
 	}
 }

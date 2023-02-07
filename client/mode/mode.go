@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"calculator/tools"
 	"encoding/gob"
 	"fmt"
 	"log"
@@ -29,21 +30,24 @@ type data struct {
 const (
 	SEGSIZE     = 65536
 	FLAG        = 00001000 | 0777
-	SEND_KEY    = 100
-	RECEIVE_KEY = 101
+	SEND_KEY    = 1000
+	RECEIVE_KEY = 1001
 )
 
 var (
+	sendId      uintptr
 	sendAddr    uintptr
-	recevieAddr uintptr
+	receiveId   uintptr
+	receiveAddr uintptr
 	result      chan string
 	modeStr     string
+	numbers     []int
 )
 
 func init() {
-	sendAddr = createMemorySegment(SEND_KEY)
-	recevieAddr = createMemorySegment(RECEIVE_KEY)
-	result = make(chan string)
+	sendId, sendAddr = createMemorySegment(SEND_KEY)
+	receiveId, receiveAddr = createMemorySegment(RECEIVE_KEY)
+	result = make(chan string, 1)
 }
 
 func main() {
@@ -52,7 +56,7 @@ func main() {
 	for {
 		var receiveData = data{sendAddr, int(SEGSIZE), int(SEGSIZE)}
 		shmData := *(*[]byte)(unsafe.Pointer(&receiveData))
-		dataFromServer := make([]byte, len(shmData))
+		dataFromServer := make([]byte, len(shmData)-1)
 		copy(dataFromServer, shmData)
 
 		var sharedText sharedStat
@@ -69,18 +73,16 @@ func main() {
 				result <- "HELLO\n"
 			} else {
 				fmt.Printf("receive %v from server\n", sharedText.Text)
-				numbersStr := strings.Fields(sharedText.Text)
-				var numbers []int
-				for _, numberStr := range numbersStr {
-					number, err := strconv.Atoi(numberStr)
-					if err != nil {
-						fmt.Println("Invalid input. Please enter only numbers.")
-						continue
-					}
-					numbers = append(numbers, number)
+				quit := strings.Fields(sharedText.Text)[0]
+				fmt.Printf("bytes: %v", []byte(quit))
+				if quit == "Q" {
+					modeStr = "shutdown\n"
+				} else {
+					numbers = tools.Str2slice(sharedText.Text)
+					modeStr = mode(numbers)
+					fmt.Printf("Mode: %v", modeStr)
 				}
-				modeStr = mode(numbers)
-				fmt.Printf("Mode: %v", modeStr)
+				fmt.Printf("modeStr: %v\n", modeStr)
 				result <- modeStr
 			}
 			sharedText.Written = false
@@ -89,11 +91,14 @@ func main() {
 				log.Fatal("encode error:", err)
 			}
 			copy(shmData, buf.Bytes())
+			if sharedText.Text == "Q" {
+				break
+			}
 		}
 	}
 }
 
-func createMemorySegment(key int) (addr uintptr) {
+func createMemorySegment(key int) (id, addr uintptr) {
 	shmId, _, errno := syscall.Syscall(syscall.SYS_SHMGET, uintptr(int32(key)), uintptr(int32(SEGSIZE)), uintptr(int32(FLAG)))
 	// fmt.Printf("id1: %v\n", shmId)
 	if int(shmId) == -1 {
@@ -108,12 +113,25 @@ func createMemorySegment(key int) (addr uintptr) {
 	// fmt.Printf("size of memory segment: %v\n", length)
 	if length != SEGSIZE {
 		fmt.Printf("SIZE Error\n")
-		syscall.Syscall(syscall.SYS_SHMDT, addr, 0, 0)
+		deleteMemorySegment(shmId, addr)
 	}
 	if err != nil {
-		syscall.Syscall(syscall.SYS_SHMDT, addr, 0, 0)
+		deleteMemorySegment(shmId, addr)
 	}
-	return addr
+	return shmId, addr
+}
+
+func deleteMemorySegment(id, addr uintptr) (int, error) {
+	result, _, errno := syscall.Syscall(syscall.SYS_SHMDT, addr, 0, 0)
+	if int(result) == -1 {
+		return -1, errno
+	}
+
+	result, _, errno = syscall.Syscall(syscall.SYS_SHMCTL, id, 0, 0)
+	if int(result) == -1 {
+		return -1, errno
+	}
+	return int(result), nil
 }
 
 func mode(numbers []int) string {
@@ -154,7 +172,8 @@ func mode(numbers []int) string {
 func writer(result chan string) {
 	for {
 		numbersStr := <-result
-		h := data{recevieAddr, int(SEGSIZE), int(SEGSIZE)}
+		fmt.Printf("check: %v\n", numbersStr == "shutdown\n")
+		h := data{receiveAddr, int(SEGSIZE), int(SEGSIZE)}
 		var buf bytes.Buffer
 		sharedText := sharedStat{true, numbersStr}
 		enc := gob.NewEncoder(&buf)
@@ -165,5 +184,19 @@ func writer(result chan string) {
 		shmData := *(*[]byte)(unsafe.Pointer(&h))
 		copy(shmData, buf.Bytes())
 		time.Sleep(1 * time.Second)
+		if numbersStr == "shutdown\n" {
+			close(result)
+			shutdown(sendId, sendAddr)
+			shutdown(receiveId, receiveAddr)
+			fmt.Println("Mode Client is down")
+			break
+		}
+	}
+}
+
+func shutdown(id, addr uintptr) {
+	_, err := deleteMemorySegment(id, addr)
+	if err != nil {
+		log.Fatal("deleteMemorySegment error:", err)
 	}
 }

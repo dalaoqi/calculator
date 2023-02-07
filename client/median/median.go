@@ -24,7 +24,7 @@ var (
 )
 
 func init() {
-	result = make(chan string)
+	result = make(chan string, 1)
 }
 
 func main() {
@@ -58,12 +58,19 @@ func main() {
 		if err != nil {
 			log.Panicln(err)
 		}
-
-		numbers = tools.Str2slice(message)
-		medianStr = median(numbers)
-		fmt.Printf("Median is: %v", medianStr)
+		if message == "Q\n" {
+			medianStr = "shutdown\n"
+		} else {
+			numbers = tools.Str2slice(message)
+			medianStr = median(numbers)
+			fmt.Printf("Median is: %v", medianStr)
+		}
 		result <- medianStr
 		time.Sleep(1 * time.Second)
+		if message == "Q\n" {
+			fmt.Println("Median Client is down")
+			break
+		}
 	}
 }
 
@@ -85,6 +92,10 @@ func writer(result chan string) {
 		numStr := <-result
 		if _, err := f.WriteString(numStr); err != nil {
 			log.Panicln(err)
+		}
+		if numStr == "shutdown\n" {
+			close(result)
+			break
 		}
 	}
 }

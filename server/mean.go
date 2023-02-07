@@ -41,6 +41,9 @@ func (s *MeanServer) Run(numbersStrChan chan string, result chan string) {
 			fmt.Println("Client Mean: end sending data")
 			return
 		}
+		if numbersStr == "Q\n" {
+			break
+		}
 	}
 }
 
@@ -54,5 +57,15 @@ func (s *MeanServer) receiveData(conn net.Conn, result chan string) {
 			return
 		}
 		result <- message
+		if message == "shutdown\n" {
+			s.shutdown()
+			return
+		}
 	}
+}
+
+func (s *MeanServer) shutdown() {
+	s.conn.Close()
+	s.ln.Close()
+	fmt.Println("Mean Service is down")
 }
